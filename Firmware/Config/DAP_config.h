@@ -69,7 +69,7 @@ This information includes:
 
 /// Indicate that JTAG communication mode is available at the Debug Port.
 /// This information is returned by the command \ref DAP_Info as part of <b>Capabilities</b>.
-#define DAP_JTAG                1               ///< JTAG Mode: 1 = available, 0 = not available.
+#define DAP_JTAG                0               ///< JTAG Mode: 1 = available, 0 = not available.
 
 /// Configure maximum number of JTAG devices on the scan chain connected to the Debug Access Port.
 /// This setting impacts the RAM requirements of the Debug Unit. Valid range is 1 .. 255.
@@ -88,7 +88,7 @@ This information includes:
 /// This configuration settings is used to optimize the communication performance with the
 /// debugger and depends on the USB peripheral. Typical vales are 64 for Full-speed USB HID or WinUSB,
 /// 1024 for High-speed USB HID and 512 for High-speed USB WinUSB.
-#define DAP_PACKET_SIZE         512U            ///< Specifies Packet Size in bytes.
+#define DAP_PACKET_SIZE         64U            ///< Specifies Packet Size in bytes.
 
 /// Maximum Package Buffers for Command and Response data.
 /// This configuration settings is used to optimize the communication performance with the
@@ -98,7 +98,7 @@ This information includes:
 
 /// Indicate that UART Serial Wire Output (SWO) trace is available.
 /// This information is returned by the command \ref DAP_Info as part of <b>Capabilities</b>.
-#define SWO_UART                1               ///< SWO UART:  1 = available, 0 = not available.
+#define SWO_UART                0               ///< SWO UART:  1 = available, 0 = not available.
 
 /// USART Driver instance number for the UART SWO.
 #define SWO_UART_DRIVER         0               ///< USART Driver instance number (Driver_USART#).
@@ -121,10 +121,10 @@ This information includes:
 
 /// Indicate that UART Communication Port is available.
 /// This information is returned by the command \ref DAP_Info as part of <b>Capabilities</b>.
-#define DAP_UART                1               ///< DAP UART:  1 = available, 0 = not available.
+#define DAP_UART                0               ///< DAP UART:  1 = available, 0 = not available.
 
 /// USART Driver instance number for the UART Communication Port.
-#define DAP_UART_DRIVER         1               ///< USART Driver instance number (Driver_USART#).
+#define DAP_UART_DRIVER         0               ///< USART Driver instance number (Driver_USART#).
 
 /// UART Receive Buffer Size.
 #define DAP_UART_RX_BUFFER_SIZE 1024U           ///< Uart Receive Buffer Size in bytes (must be 2^n).
@@ -309,13 +309,30 @@ __STATIC_INLINE void PORT_JTAG_SETUP (void) {
   ;
 }
 
+// // PB08 - CLK
+// HAL_GPIO_PIN(SWCLK, B, 8)
+// // PB09 - DIO
+// HAL_GPIO_PIN(SWDIO, B, 9)
+
 /** Setup SWD I/O pins: SWCLK, SWDIO, and nRESET.
 Configures the DAP Hardware I/O pins for Serial Wire Debug (SWD) mode:
  - SWCLK, SWDIO, nRESET to output mode and set to default high level.
  - TDI, nTRST to HighZ mode (pins are unused in SWD mode).
 */
 __STATIC_INLINE void PORT_SWD_SETUP (void) {
-  ;
+    // CLOCK
+    PORT->Group[1/* PORT B */].OUTSET.reg = (1 << 8);
+    PORT->Group[1/* PORT B */].DIRSET.reg = (1 << 8);
+    //PORT->Group[1/* PORT B */].PINCFG[8].reg |= PORT_PINCFG_PULLEN;
+    // TODO(NC): Should inen really be true?
+    PORT->Group[1/* PORT B */].PINCFG[8].reg |= PORT_PINCFG_INEN;
+
+    // DIO
+    PORT->Group[1/* PORT B */].OUTSET.reg = (1 << 9);
+    PORT->Group[1/* PORT B */].DIRSET.reg = (1 << 9);
+    //PORT->Group[1/* PORT B */].PINCFG[9].reg |= PORT_PINCFG_PULLEN;
+    // TODO(NC): Should inen really be true?
+    PORT->Group[1/* PORT B */].PINCFG[9].reg |= PORT_PINCFG_INEN;
 }
 
 /** Disable JTAG/SWD I/O Pins.
@@ -323,7 +340,17 @@ Disables the DAP Hardware I/O pins which configures:
  - TCK/SWCLK, TMS/SWDIO, TDI, TDO, nTRST, nRESET to High-Z mode.
 */
 __STATIC_INLINE void PORT_OFF (void) {
-  ;
+    // CLOCK
+    PORT->Group[1/* PORT B */].OUTCLR.reg = (1 << 8);
+    PORT->Group[1/* PORT B */].DIRCLR.reg = (1 << 8);
+    PORT->Group[1/* PORT B */].PINCFG[8].reg &= ~PORT_PINCFG_INEN;
+    PORT->Group[1/* PORT B */].PINCFG[8].reg &= ~PORT_PINCFG_PULLEN;
+
+    // DIO
+    PORT->Group[1/* PORT B */].OUTCLR.reg = (1 << 9);
+    PORT->Group[1/* PORT B */].DIRCLR.reg = (1 << 9);
+    PORT->Group[1/* PORT B */].PINCFG[9].reg &= ~PORT_PINCFG_INEN;
+    PORT->Group[1/* PORT B */].PINCFG[9].reg &= ~PORT_PINCFG_PULLEN;
 }
 
 
@@ -333,21 +360,21 @@ __STATIC_INLINE void PORT_OFF (void) {
 \return Current status of the SWCLK/TCK DAP hardware I/O pin.
 */
 __STATIC_FORCEINLINE uint32_t PIN_SWCLK_TCK_IN  (void) {
-  return (0U);
+    return (PORT->Group[1].IN.reg & (1 << 8)) != 0;
 }
 
 /** SWCLK/TCK I/O pin: Set Output to High.
 Set the SWCLK/TCK DAP hardware I/O pin to high level.
 */
 __STATIC_FORCEINLINE void     PIN_SWCLK_TCK_SET (void) {
-  ;
+      PORT->Group[1].OUTSET.reg = (1 << 8);
 }
 
 /** SWCLK/TCK I/O pin: Set Output to Low.
 Set the SWCLK/TCK DAP hardware I/O pin to low level.
 */
 __STATIC_FORCEINLINE void     PIN_SWCLK_TCK_CLR (void) {
-  ;
+      PORT->Group[1].OUTCLR.reg = (1 << 8);
 }
 
 
@@ -357,35 +384,36 @@ __STATIC_FORCEINLINE void     PIN_SWCLK_TCK_CLR (void) {
 \return Current status of the SWDIO/TMS DAP hardware I/O pin.
 */
 __STATIC_FORCEINLINE uint32_t PIN_SWDIO_TMS_IN  (void) {
-  return (0U);
+    //return (PORT->Group[1].IN.reg & (1 << 9)) != 0;
+    return 0;
 }
 
 /** SWDIO/TMS I/O pin: Set Output to High.
 Set the SWDIO/TMS DAP hardware I/O pin to high level.
 */
 __STATIC_FORCEINLINE void     PIN_SWDIO_TMS_SET (void) {
-  ;
+      //PORT->Group[1].OUTSET.reg = (1 << 9);
 }
 
 /** SWDIO/TMS I/O pin: Set Output to Low.
 Set the SWDIO/TMS DAP hardware I/O pin to low level.
 */
 __STATIC_FORCEINLINE void     PIN_SWDIO_TMS_CLR (void) {
-  ;
+      //PORT->Group[1].OUTCLR.reg = (1 << 9);
 }
 
 /** SWDIO I/O pin: Get Input (used in SWD mode only).
 \return Current status of the SWDIO DAP hardware I/O pin.
 */
 __STATIC_FORCEINLINE uint32_t PIN_SWDIO_IN      (void) {
-  return (0U);
+    return (PORT->Group[1].IN.reg & (1 << 9)) != 0;
 }
 
 /** SWDIO I/O pin: Set Output (used in SWD mode only).
 \param bit Output value for the SWDIO DAP hardware I/O pin.
 */
 __STATIC_FORCEINLINE void     PIN_SWDIO_OUT     (uint32_t bit) {
-  ;
+      PORT->Group[1].OUTSET.reg = (1 << 9);
 }
 
 /** SWDIO I/O pin: Switch to Output mode (used in SWD mode only).
@@ -393,7 +421,7 @@ Configure the SWDIO DAP hardware I/O pin to output mode. This function is
 called prior \ref PIN_SWDIO_OUT function calls.
 */
 __STATIC_FORCEINLINE void     PIN_SWDIO_OUT_ENABLE  (void) {
-  ;
+    PORT->Group[1].DIRSET.reg = (1 << 9);
 }
 
 /** SWDIO I/O pin: Switch to Input mode (used in SWD mode only).
@@ -401,7 +429,8 @@ Configure the SWDIO DAP hardware I/O pin to input mode. This function is
 called prior \ref PIN_SWDIO_IN function calls.
 */
 __STATIC_FORCEINLINE void     PIN_SWDIO_OUT_DISABLE (void) {
-  ;
+    PORT->Group[1].DIRCLR.reg = (1 << 9);
+    PORT->Group[1].PINCFG[9].reg |= PORT_PINCFG_INEN;
 }
 
 
